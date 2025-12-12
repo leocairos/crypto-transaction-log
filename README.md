@@ -1,10 +1,17 @@
-# Crypto Transaction Log
+# 📒 Crypto Transaction Log
 
 A simple web application for recording and exporting cryptocurrency transactions.  
 Built with **Next.js** to help users maintain organized records for portfolio tracking and tax/compliance purposes.
 
+**Requires:**
+- **Node.js 20+**
+- **npm**, **yarn**, or **pnpm**
+- Internet connection for historical price fetching
 
-## Features
+🧪 Demo available in https://crypto-transaction-log-rdlsc.vercel.app/
+
+
+## 🔥 Features
 
 - Manual input of all transaction data (date, time, assets, amounts, fees, notes)
 - Automatic historical price lookup using **Binance API**
@@ -14,15 +21,7 @@ Built with **Next.js** to help users maintain organized records for portfolio tr
 - Local persistence using `localStorage`
 - Fully client-side — backend not required
 
-
-## Prerequisites
-
-- **Node.js 16+**
-- **npm**, **yarn**, or **pnpm**
-- Internet connection for historical price fetching
-
-
-## Installation and Running the App
+## 🚀 Installation and Running
 
 ```sh
 git clone https://github.com/leocairos/crypto-transaction-log.git
@@ -39,7 +38,7 @@ http://localhost:5173
     <img alt="app_screenshot" title="App Screenshot" src="./.github/app_screenshot.png" />
 </p>
 
-## Notes
+## 📝 Notes
 
 This project is intended as a client-side tool.
 
