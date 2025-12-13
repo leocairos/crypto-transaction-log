@@ -526,6 +526,7 @@ export default function CryptoRegistry() {
 
           <div style={{ marginLeft: 'auto' }}>
             <button type="button" onClick={exportCSV} style={{ padding: '8px 12px', borderRadius: 6 }}>Export XLS</button>
+            <button type="button" onClick={() => window.open("/indexGetHistorical.html", "_blank")} style={{ padding: '8px 12px', borderRadius: 6 }}>Crypto Historical Prices</button>
           </div>
         </div>
       </form>

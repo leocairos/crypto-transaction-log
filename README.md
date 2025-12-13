@@ -38,6 +38,10 @@ http://localhost:5173
     <img alt="app_screenshot" title="App Screenshot" src="./.github/app_screenshot.png" />
 </p>
 
+<p align="center">
+    <img alt="app_screenshot_get_historical" title="App Screenshot Get Historical" src="./.github/app_screenshot_get_historical.png" />
+</p>
+
 ## 📝 Notes
 
 This project is intended as a client-side tool.
