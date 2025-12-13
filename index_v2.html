@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Crypto Historical Prices</title>
+  <style>
+    body {
+      font-family: Arial;
+      padding: 20px;
+      background: #f8f8f8;
+    }
+
+    textarea {
+      width: 100%;
+      height: 160px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+
+    th,
+    td {
+      padding: 8px;
+      border: 1px solid #ccc;
+      text-align: left;
+    }
+
+    button {
+      padding: 10px 16px;
+      margin: 12px 6px 0 0;
+      font-size: 15px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+
+<body>
+
+  <h2>Crypto Price Processor</h2>
+
+  <textarea id="inputText" placeholder="Exemplo:
+2025-12-09T23:59;BTC
+2025-10-01T10:22;ETH
+2024-07-11T09:00;USDC
+"></textarea>
+
+  <br>
+
+  <button onclick="processLines()">Processar</button>
+  <button onclick="copyToExcel()">Copiar para Excel (BR)</button>
+
+  <table id="resultTable">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Symbol</th>
+        <th>USD Price</th>
+        <th>BRL Price</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    // =========================
+    // RATE LIMIT: 3 requests/s
+    // =========================
+    let lastRequestTime = 0;
+    const minInterval = 333; // ~3 req/s
+
+    async function rateLimitedFetch(url) {
+      const now = Date.now();
+      const elapsed = now - lastRequestTime;
+
+      if (elapsed < minInterval) {
+        await new Promise(res => setTimeout(res, minInterval - elapsed));
+      }
+
+      lastRequestTime = Date.now();
+
+      try {
+        return await fetch(url);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // =========================
+    // CACHE
+    // =========================
+    const priceCache = {};
+    const usdtBrlCache = {};
+
+    function roundToMinute(dateISO) {
+      const d = new Date(dateISO);
+      d.setSeconds(0, 0);
+      return d.toISOString();
+    }
+
+    async function fetchHistoricalPrice(symbol, dateTimeISO) {
+      const minuteISO = roundToMinute(dateTimeISO);
+      const cacheKey = `${symbol}-${minuteISO}`;
+
+      if (priceCache[cacheKey]) return priceCache[cacheKey];
+
+      const symbolUpper = symbol.trim().toUpperCase();
+      const ts = new Date(minuteISO).getTime();
+
+      // ============================
+      // TRATAMENTO ESPECIAL – STABLECOINS
+      // ============================
+      if (symbolUpper === "USDT") {
+        priceCache[cacheKey] = 1.0;
+        return 1.0;
+      }
+
+      let pair = symbolUpper + "USDT";
+
+      // Para USDC e BUSD: se falhar → assume 1
+      const stablecoins = ["USDC", "BUSD"];
+
+      const url = `https://api.binance.com/api/v3/klines?symbol=${pair}&interval=1m&startTime=${ts}&limit=1`;
+      const res = await rateLimitedFetch(url);
+
+      if (!res) {
+        if (stablecoins.includes(symbolUpper)) {
+          priceCache[cacheKey] = 1.0;
+          return 1.0;
+        }
+        return 0;
+      }
+
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        if (stablecoins.includes(symbolUpper)) return 1.0;
+        return 0;
+      }
+
+      if (!Array.isArray(data) || data.length === 0) {
+        if (stablecoins.includes(symbolUpper)) return 1.0;
+        return 0;
+      }
+
+      const price = parseFloat(data[0][1]);
+      if (isNaN(price)) {
+        if (stablecoins.includes(symbolUpper)) return 1.0;
+        return 0;
+      }
+
+      priceCache[cacheKey] = price;
+      return price;
+    }
+
+
+    async function fetchUSDTBRL(dateTimeISO) {
+      const minuteISO = roundToMinute(dateTimeISO);
+
+      if (usdtBrlCache[minuteISO]) return usdtBrlCache[minuteISO];
+
+      const ts = new Date(minuteISO).getTime();
+      const url = `https://api.binance.com/api/v3/klines?symbol=USDTBRL&interval=1m&startTime=${ts}&limit=1`;
+
+      const res = await rateLimitedFetch(url);
+      if (!res) return 0;
+
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        return 0;
+      }
+
+      if (!Array.isArray(data) || data.length === 0) return 0;
+
+      const brl = parseFloat(data[0][1]);
+      if (isNaN(brl)) return 0;
+
+      usdtBrlCache[minuteISO] = brl;
+      return brl;
+    }
+
+    async function processLines() {
+      const raw = document.getElementById("inputText").value.trim();
+      const lines = raw.split("\n");
+
+      const tbody = document.querySelector("#resultTable tbody");
+      tbody.innerHTML = "";
+
+      window.finalRows = [];
+
+      for (let line of lines) {
+        const [date, symbol] = line.split(";");
+
+        if (!date || !symbol) continue;
+
+        let usdPrice = await fetchHistoricalPrice(symbol.trim(), date.trim());
+        let usdToBrl = await fetchUSDTBRL(date.trim());
+
+        if (!usdPrice) usdPrice = 0;
+        if (!usdToBrl) usdToBrl = 0;
+
+        let brlPrice = (usdPrice * usdToBrl).toFixed(2);
+
+        const row = {
+          date: date.trim(),
+          symbol: symbol.trim(),
+          usd: usdPrice.toFixed(4),
+          brl: brlPrice
+        };
+
+        window.finalRows.push(row);
+
+        tbody.insertAdjacentHTML(
+          "beforeend",
+          `
+      <tr>
+        <td>${row.date}</td>
+        <td>${row.symbol}</td>
+        <td>${row.usd}</td>
+        <td>${row.brl}</td>
+      </tr>
+      `
+        );
+      }
+    }
+
+    // ===============================
+    // BOTÃO COPIAR PARA EXCEL (BR)
+    // ===============================
+    function copyToExcel() {
+      if (!window.finalRows || window.finalRows.length === 0) {
+        alert("Nenhum dado para copiar. Clique em Processar primeiro.");
+        return;
+      }
+
+      let output = "Data\tSímbolo\tPreço USD\tPreço BRL\n";
+
+      for (const r of window.finalRows) {
+        const dateFormatted = new Date(r.date)
+          .toLocaleString("pt-BR")
+          .replace(",", "");
+
+        // Mantemos vírgula nos números para padrão BR
+        const usd = r.usd.replace(".", ",");
+        const brl = r.brl.replace(".", ",");
+
+        output += `${dateFormatted}\t${r.symbol}\t${usd}\t${brl}\n`;
+      }
+
+      navigator.clipboard.writeText(output).then(() => {
+        alert("Copiado em formato de colunas! Agora basta colar no Excel.");
+      });
+    }
+
+  </script>
+
+</body>
+
+</html>
